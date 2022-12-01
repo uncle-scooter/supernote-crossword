@@ -153,7 +153,7 @@ async function wsjc(date) {
 async function main() {
   const date = new Date((new Date()).toLocaleString('en-US', { timeZone: 'America/New_York' }));
   console.log(`NYTC Block`);
-  await nytc(new Date(date.getTime()));
+  await nytc(new Date(date.getTime()-86400000));
   console.log(`WSJC Block`);
   await wsjc(new Date(date.getTime()));
 }
