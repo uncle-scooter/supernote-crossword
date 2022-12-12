@@ -3,9 +3,12 @@ const https = require('https');
 const moment = require('moment');
 const path = require('path');
 const process = require('process');
+require('dotenv').config()
 
 const dbx = new dropbox.Dropbox({
-  accessToken: process.env.DROPBOX_ACCESS_TOKEN,
+  clientId: process.env.DROPBOX_APP_KEY,
+  clientSecret: process.env.DROPBOX_APP_SECRET,
+  refreshToken: process.env.DROPBOX_REFRESH_TOKEN,
 });
 
 function getNYTC(date) {
@@ -69,6 +72,7 @@ async function nytc(date) {
     console.log(`File already uploaded.`);
     return;
   } catch (error) {
+    console.log(error)
     console.log(`File not yet uploaded.`);
   }
   console.log(`Uploading file.`);
@@ -80,6 +84,8 @@ async function nytc(date) {
     console.log(`Successfully uploaded ${response.result.content_hash}.`);
     return;
   } catch (error) {
+    console.log(error)
+
     console.log(`DROPBOX_ACCESS_TOKEN likely expired. Error: ${error}`);
     process.exit(1);
   }
@@ -153,9 +159,7 @@ async function wsjc(date) {
 async function main() {
   const date = new Date((new Date()).toLocaleString('en-US', { timeZone: 'America/New_York' }));
   console.log(`NYTC Block`);
-  await nytc(new Date(date.getTime()));
-  console.log(`WSJC Block`);
-  await wsjc(new Date(date.getTime()));
+  await nytc(new Date(date.getTime()-(60*24*60000)));
 }
 
 main().then(() => process.exit(0));
