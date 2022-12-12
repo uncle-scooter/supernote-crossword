@@ -72,7 +72,6 @@ async function nytc(date) {
     console.log(`File already uploaded.`);
     return;
   } catch (error) {
-    console.log(error)
     console.log(`File not yet uploaded.`);
   }
   console.log(`Uploading file.`);
@@ -84,7 +83,6 @@ async function nytc(date) {
     console.log(`Successfully uploaded ${response.result.content_hash}.`);
     return;
   } catch (error) {
-    console.log(error)
 
     console.log(`DROPBOX_ACCESS_TOKEN likely expired. Error: ${error}`);
     process.exit(1);
