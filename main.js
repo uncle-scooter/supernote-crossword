@@ -12,6 +12,9 @@ const dbx = new dropbox.Dropbox({
 });
 
 function getNYTC(date) {
+
+  console.log(`Checking ${moment(date).format('YYYY-MM-DD')}'s NYT crossword.`);
+
   return new Promise((resolve, reject) => {
     const req = https.request({
       protocol: 'https:',
@@ -32,6 +35,7 @@ function getNYTC(date) {
           data.push(chunk);
         });
         res.on('end', () => {
+          console.log(`Downloaded ${moment(date).format('YYYY-MM-DD')}'s NYT crossword.`);
           resolve(Buffer.concat(data));
         });
       } else {
@@ -45,119 +49,53 @@ function getNYTC(date) {
   });
 }
 
-async function nytc(date) {
-  console.log(`Checking ${moment(date).format('YYYY-MM-DD')}'s crossword.`);
+async function UploadCrossword(data, date) {
+  console.log(date)
   try {
-    await getNYTC(date);
-    console.log(`Successfully checked ${moment(date).format('YYYY-MM-DD')}'s crossword.`);
-  } catch (error) {
-    console.log(`NYT_COOKIE likely expired. Error: ${error}`);
-    process.exit(1);
-  }
-  date.setDate(date.getDate() + 1);
-  console.log(`Downloading ${moment(date).format('YYYY-MM-DD')}'s crossword.`);
-  data = undefined;
-  try {
-    data = await getNYTC(date);
-    console.log(`Successfully downloaded ${moment(date).format('YYYY-MM-DD')}'s crossword.`);
-  } catch (error) {
-    console.log(`${moment(date).format('YYYY-MM-DD')}'s crossword is not yet released.`);
-    return;
-  }
-  console.log(`Checking if file exists.`);
-  try {
-    await dbx.filesGetMetadata({
-      path: path.join(process.env.DROPBOX_NYTC_PATH, `${moment(date).format('YYYY-MM-DD-ddd')}-crossword.pdf`),
-    });
-    console.log(`File already uploaded.`);
-    return;
-  } catch (error) {
-    console.log(`File not yet uploaded.`);
-  }
-  console.log(`Uploading file.`);
-  try {
-    response = await dbx.filesUpload({
+    let {result} = await dbx.filesUpload({
       path: path.join(process.env.DROPBOX_NYTC_PATH, `${moment(date).format('YYYY-MM-DD-ddd')}-crossword.pdf`),
       contents: data,
     });
-    console.log(`Successfully uploaded ${response.result.content_hash}.`);
-    return;
-  } catch (error) {
+    console.log(`Successfully uploaded ${result.content_hash}.`);
 
-    console.log(`DROPBOX_ACCESS_TOKEN likely expired. Error: ${error}`);
+    return result.content_hash
+  }
+  catch(e) {
+    console.log(`DROPBOX TOKEN likely expired. Error: ${e}`);
     process.exit(1);
   }
 }
 
-function getWSJC(date) {
-  return new Promise((resolve, reject) => {
-    const req = https.request({
-      protocol: 'https:',
-      host: 's.wsj.net',
-      path: `/public/resources/documents/${moment(date).format('[XWD]MMDDYYYY')}.pdf`,
-      method: 'GET',
-    }, (res) => {
-      if (res.statusCode === 200) {
-        const data = [];
-        res.on('error', (err) => {
-          reject(err);
-        });
-        res.on('data', (chunk) => {
-          data.push(chunk);
-        });
-        res.on('end', () => {
-          resolve(Buffer.concat(data));
-        });
-      } else {
-        reject(res.statusCode);
-      }
-    });
-    req.on('error', (err) => {
-      reject(err);
-    });
-    req.end();
-  });
-}
+async function IsUploadedToDropbox(date) {
 
-async function wsjc(date) {
-  date.setDate(date.getDate() + 1);
-  console.log(`Downloading ${moment(date).format('YYYY-MM-DD')}'s crossword.`);
-  data = undefined;
-  try {
-    data = await getWSJC(date);
-    console.log(`Successfully downloaded ${moment(date).format('YYYY-MM-DD')}'s crossword.`);
-  } catch (error) {
-    console.log(`${moment(date).format('YYYY-MM-DD')}'s crossword is not yet released.`);
-    return;
-  }
-  console.log(`Checking if file exists.`);
   try {
     await dbx.filesGetMetadata({
-      path: path.join(process.env.DROPBOX_WSJC_PATH, `${moment(date).format('YYYY-MM-DD-ddd')}-crossword.pdf`),
+      path: path.join(process.env.DROPBOX_NYTC_PATH, `${moment(date).format('YYYY-MM-DD-ddd')}-crossword.pdf`),
     });
-    console.log(`File already uploaded.`);
-    return;
-  } catch (error) {
-    console.log(`File not yet uploaded.`);
+    return true
   }
-  console.log(`Uploading file.`);
-  try {
-    response = await dbx.filesUpload({
-      path: path.join(process.env.DROPBOX_WSJC_PATH, `${moment(date).format('YYYY-MM-DD-ddd')}-crossword.pdf`),
-      contents: data,
-    });
-    console.log(`Successfully uploaded ${response.result.content_hash}.`);
-    return;
-  } catch (error) {
-    console.log(`DROPBOX_ACCESS_TOKEN likely expired. Error: ${error}`);
-    process.exit(1);
+  catch(e) {
+    console.error(e)
+    return false;
   }
+}
+
+async function DownloadCrossword(api, date) {
+  return api(date)
 }
 
 async function main() {
   const date = new Date((new Date()).toLocaleString('en-US', { timeZone: 'America/New_York' }));
-  console.log(`NYTC Block`);
-  await nytc(new Date(date.getTime()-(60*24*60000)));
+
+  let isUploaded = await IsUploadedToDropbox(date);
+
+  if(!isUploaded) {
+    let cw = await DownloadCrossword(getNYTC, date)
+    await UploadCrossword(cw, date)
+  }
+
+  return;
 }
+
 
 main().then(() => process.exit(0));
